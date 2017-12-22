@@ -794,6 +794,8 @@ int init_socket() {
 
   debug("Opening socket\n");
   sock = socket(AF_INET, SOCK_DGRAM, 0);
+  int status=1;
+  setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, (char *)&status, sizeof(int));
   if(sock < 0) {
     fail("error opening socket");
   }
@@ -1007,6 +1009,28 @@ void main_loop(int sock, char* query_arg, int min_answers, FoundAnswerList* alis
   return;
 }
 
+// Prepare blank answer and  attempt to fill it
+void make_srv_answer(int sock, char* query, FoundAnswerList* alist) {
+
+  FoundAnswer* answer;
+  mDNSResourceRecord* rr;
+  int len = strlen(query);
+  char* query_arg;
+
+  query_arg = malloc(len + 2);
+  memcpy(query_arg, query, len+1);
+
+  rr = malloc(sizeof(mDNSResourceRecord));
+
+  answer = add_new_answer(alist);
+  answer->rr = rr;
+  rr->type = DNS_RR_TYPE_PTR;
+  rr->name = query_arg;
+  answer->name = query_arg;
+  complete_answers(sock, query_arg, alist );
+
+}
+
 int main(int argc, char* argv[]) {
 
   struct timeval runtime;
@@ -1073,12 +1097,13 @@ int main(int argc, char* argv[]) {
     
   } else { // this is a query for a host name
 
-    fail("only service queries currently supported");
+    make_srv_answer(sock, query_arg, &alist);
 
   }
 
   main_loop(sock, query_arg, min_answers, &alist, &runtime);
   print_answers(&alist);
 
+  clear_answer_list(&alist);
   return 0;
 }
